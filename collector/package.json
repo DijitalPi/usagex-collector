@@ -1,0 +1,9 @@
+{
+  "name": "clmt-collector",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLMT collector — Claude Code plugin",
+  "scripts": {
+    "test": "node --test"
+  }
+}

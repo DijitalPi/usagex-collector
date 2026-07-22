@@ -1,0 +1,11 @@
+{
+  "name": "usagex",
+  "owner": { "name": "DijitalPi" },
+  "plugins": [
+    {
+      "name": "usagex",
+      "source": "./collector",
+      "description": "UsagEX collector — Claude limit ve kullanım verisini UsagEX backend'ine gönderir"
+    }
+  ]
+}
