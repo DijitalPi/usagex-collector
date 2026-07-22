@@ -9,7 +9,7 @@ percentages and token statistics are sent.
 In Claude Code:
 
 ```
-/plugin marketplace add dijitalpi/usagex
+/plugin marketplace add dijitalpi/usagex-collector
 /plugin install usagex
 ```
 
