@@ -1,5 +1,24 @@
 const os = require("os");
+const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
+
+// Claude Code'un GERÇEK ilk kullanım tarihi (~/.claude.json bunu transkriptler
+// silinse bile hatırlar) — sunucudaki "tecrübe" metriği ilk transkript değil
+// gerçek başlangıçtan saysın. Okunamazsa null (opsiyonel alan).
+let _firstUsed;
+function claudeFirstUsedAt() {
+  if (_firstUsed !== undefined) return _firstUsed;
+  _firstUsed = null;
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".claude.json"), "utf8"));
+    const cands = [j.claudeCodeFirstTokenDate, j.firstStartTime]
+      .map((v) => (v ? Date.parse(v) : NaN))
+      .filter((t) => Number.isFinite(t) && t > Date.parse("2020-01-01") && t <= Date.now());
+    if (cands.length) _firstUsed = new Date(Math.min(...cands)).toISOString();
+  } catch {}
+  return _firstUsed;
+}
 
 // send_project_names=false iken proje adı geri döndürülemez kısa hash'e çevrilir
 // (klasör adları müşteri/proje ismi içerebilir — veri minimizasyonu).
@@ -17,6 +36,7 @@ function snapshotPayload(plan_usage, { source }) {
     kind: "snapshot",
     source, // 'session-start' | 'stop' | 'session-end' | 'ping' | 'poller'
     plan_usage,
+    claude_first_used_at: claudeFirstUsedAt(),
   };
 }
 

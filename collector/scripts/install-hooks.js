@@ -34,6 +34,15 @@ for (const [evt, file] of Object.entries(EVENTS)) {
   });
 }
 
+// Transkript saklama: Claude Code varsayılan ~30 günde eski oturumları SİLİYOR —
+// raporların uzun geçmişi olsun diye saklamayı uzat (kullanıcı kendi değerini
+// koyduysa DOKUNMA; istemezse settings.json'dan değiştirebilir).
+let retentionMsg = "";
+if (settings.cleanupPeriodDays == null) {
+  settings.cleanupPeriodDays = 3650;
+  retentionMsg = "\n✓ Transkript saklama 10 yıla çıkarıldı (cleanupPeriodDays) — raporlar artık uzun geçmiş biriktirir.";
+}
+
 fs.mkdirSync(claudeDir, { recursive: true });
 fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-console.log(`✓ Claude Code hook'ları kuruldu (${settingsPath})`);
+console.log(`✓ Claude Code hook'ları kuruldu (${settingsPath})${retentionMsg}`);
