@@ -74,12 +74,13 @@ async function main() {
   console.log(`✔ Cihaz bağlandı → ${cfgPath}`);
   console.log("Bundan sonra her Claude Code oturumu limit ve kullanım verini gönderecek.");
 
-  // Rapor ilk günden dolu gelsin: son 30 günün transcript'lerini hemen gönder.
-  // (session_id upsert — tekrar çalışsa da güvenli. Başarısız olsa da eşleşme geçerli.)
-  console.log("Geçmiş 30 günün oturumları gönderiliyor…");
+  // Rapor ilk günden dolu gelsin: son 90 günün transcript'lerini hemen gönder.
+  // (Claude Code eski transkriptleri ~30 günde temizler; 90 istemek zarar vermez,
+  //  ne varsa onu gönderir. session_id upsert — tekrar çalışsa da güvenli.)
+  console.log("Geçmiş 90 günün oturumları gönderiliyor…");
   try {
     const { spawnSync } = require("child_process");
-    spawnSync(process.execPath, [path.join(__dirname, "backfill.js"), "30"], {
+    spawnSync(process.execPath, [path.join(__dirname, "backfill.js"), "90"], {
       stdio: "inherit", timeout: 5 * 60 * 1000,
     });
   } catch {}

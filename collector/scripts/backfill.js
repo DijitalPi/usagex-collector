@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Son N günün transcript'lerini toplu gönderir (varsayılan 30).
+// Son N günün transcript'lerini toplu gönderir (varsayılan 90).
 // API session_id ile upsert yaptığı için tekrar çalıştırmak güvenlidir.
 const fs = require("fs");
 const path = require("path");
@@ -11,7 +11,7 @@ const { sendPayload } = require("../lib/sender");
 
 async function main() {
   let days = parseInt(process.argv[2], 10);
-  if (!Number.isFinite(days) || days <= 0) days = 30;
+  if (!Number.isFinite(days) || days <= 0) days = 90;
   const config = loadConfig();
   if (!config) {
     console.error("Config bulunamadı ya da devre dışı: ~/.claude/usagex.json — önce /usagex-connect çalıştır.");
