@@ -2,6 +2,11 @@
 // Fiyat güncellemesi gerekirse sadece bu tabloyu düzenle.
 const PRICES = [
   // Spesifik Anthropic model tanımları
+  // Claude 5 ailesi — resmî API fiyatı yayınlandığında güncelle
+  // (şimdilik Opus tarifesi: alt sınır; eşleşme yoksa maliyet 0 sayılıyordu ki o çok daha yanlış)
+  { match: "fable", input: 15, output: 75 },
+  { match: "mythos", input: 15, output: 75 },
+  { match: "sonnet-5", input: 3, output: 15 },
   { match: "3-7-sonnet", input: 3, output: 15 },
   { match: "3-5-sonnet", input: 3, output: 15 },
   { match: "3-5-haiku", input: 0.8, output: 4 },

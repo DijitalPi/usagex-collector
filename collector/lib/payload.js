@@ -2,6 +2,7 @@ const os = require("os");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const { estimateCostUsd } = require("./pricing");
 
 // Claude Code'un GERÇEK ilk kullanım tarihi (~/.claude.json bunu transkriptler
 // silinse bile hatırlar) — sunucudaki "tecrübe" metriği ilk transkript değil
@@ -51,6 +52,23 @@ function filterClaudeModels(models) {
 }
 
 function sessionPayload({ session_id, summary, est_cost_usd, plan_usage, config }) {
+  // Gün bazlı döküm: sunucu token'ları oturumun bittiği güne değil, GERÇEKLEŞTİĞİ
+  // güne yazar (günlerce açık kalan oturum tek günün raporunu şişirmesin).
+  // Üst düzey toplam alanlar eski sunucularla geriye uyumluluk için kalır.
+  const days = Object.entries(summary.days || {})
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([day, d]) => {
+      const models = filterClaudeModels(d.models);
+      return {
+        day,
+        started_at: d.started_at,
+        ended_at: d.ended_at,
+        message_count: d.message_count,
+        models,
+        est_cost_usd: estimateCostUsd(models),
+      };
+    })
+    .filter((d) => d.message_count > 0 || Object.keys(d.models).length > 0);
   return {
     schema_version: 1,
     kind: "session",
@@ -64,6 +82,7 @@ function sessionPayload({ session_id, summary, est_cost_usd, plan_usage, config 
     models: filterClaudeModels(summary.models),
     est_cost_usd,
     plan_usage,
+    days,
   };
 }
 
