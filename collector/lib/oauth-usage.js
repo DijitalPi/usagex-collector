@@ -14,14 +14,17 @@ function pct(win) {
   return Math.min(100, Math.max(0, Math.round(win.utilization)));
 }
 
-async function getPlanUsage({ dir, fetchImpl = fetch, now = Date.now } = {}) {
+async function getPlanUsage({ dir, fetchImpl = fetch, now = Date.now, force = false } = {}) {
   try {
     if (!dir) dir = claudeDir();
   } catch {
     return null;
   }
   const cachePath = path.join(dir, "usagex-usage-cache.json");
-  try {
+  // force: cache atlanır (oturum SONU gönderimi için — eşik tam kapanışta
+  // geçildiyse 5 dk'lık cache eski yüzdeyi taşır ve taze veri bir daha gelmez;
+  // sunucu eşiği ancak kullanıcı app'i açınca görürdü).
+  if (!force) try {
     const cached = JSON.parse(fs.readFileSync(cachePath, "utf8"));
     // fetched_at <= now: saat geri alınırsa (skew) gelecekteki damga bayat cache'i
     // sonsuza dek taze göstermesin.

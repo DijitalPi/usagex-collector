@@ -33,7 +33,9 @@ async function main() {
     session_id: input.session_id || path.basename(input.transcript_path, ".jsonl"),
     summary,
     est_cost_usd: estimateCostUsd(summary.models),
-    plan_usage: await getPlanUsage(),
+    // force: oturumun SON yüzdesi taze olsun — cache'li değer eşik geçişini
+    // gizlerse sunucu onu ancak kullanıcı app'i açınca öğreniyordu
+    plan_usage: await getPlanUsage({ force: true }),
     config,
   });
 
