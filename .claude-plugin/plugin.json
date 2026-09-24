@@ -1,5 +1,0 @@
-{
-  "name": "usagex",
-  "version": "0.3.0",
-  "description": "UsagEX collector — Claude limit ve kullanım verisini UsagEX backend'ine gönderir (token makineden çıkmaz)"
-}
