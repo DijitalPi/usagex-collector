@@ -4,8 +4,8 @@
 
 const MESSAGES = {
   tr: {
-    usage_claude: "Kullanım: connect.js <8 karakterli kod>. Kodu UsagEX uygulamasında Ayarlar > Bilgisayar bağla bölümünden alın.",
-    usage_codex: "Kullanım: codex/connect.js <8 karakterli kod>. Kodu UsagEX uygulamasında Codex > Ayarlar bölümünden alın.",
+    usage_claude: "Kullanım: connect.js <8 karakterli kod>. Kodu UsagEX uygulamasında Ayarlar → Bilgisayarlar bölümünden alın.",
+    usage_codex: "Kullanım: codex/connect.js <8 karakterli kod>. Kodu UsagEX uygulamasında Codex → Ayarlar → Bilgisayarlar bölümünden alın.",
     node_too_old: "Node.js {version} çok eski. UsagEX için Node.js {min} veya üstü gerekir. Güncelleyip tekrar deneyin: https://nodejs.org",
     unexpected: "Beklenmeyen bir hata oluştu: {reason}",
 
@@ -21,12 +21,12 @@ const MESSAGES = {
 
     network_error: "Sunucuya ulaşılamadı. İnternet bağlantınızı kontrol edip komutu tekrar çalıştırın.",
     code_format: "Kod 8 karakter olmalı (harf ve rakam). Kodu uygulamada göründüğü gibi yazın.",
-    code_invalid: "Kodun süresi dolmuş ya da kod daha önce kullanılmış. Uygulamadan yeni kod alın.",
+    code_invalid: "Bu kod çalışmadı: yanlış yazılmış, süresi dolmuş ya da kullanılmış olabilir. UsagEX uygulamasından yeni kod alın.",
     rate_limited: "Çok fazla deneme yapıldı. Bir dakika bekleyip tekrar deneyin.",
     server_busy: "Sunucu şu an yanıt vermiyor ({status}). Birkaç dakika sonra tekrar deneyin.",
     server_error: "Bağlantı kurulamadı (sunucu yanıtı {status}). Uygulamadan yeni kod alıp tekrar deneyin.",
     bad_response: "Sunucudan beklenmeyen bir yanıt geldi. Bağlantı kurulmadı, tekrar deneyin.",
-    wrong_provider: "Bu kod Codex için değil. Uygulamada Codex > Ayarlar bölümünden yeni kod alın.",
+    wrong_provider: "Bu kod Codex için değil. Uygulamada Codex → Ayarlar → Bilgisayarlar bölümünden yeni kod alın.",
     redirect_refused: "Sunucu yanıtı başka bir adrese yönlendiriyor. Güvenlik için bağlantı kurulmadı.",
     server_url_invalid: "Sunucu adresi geçersiz (USAGEX_SERVER_URL). HTTPS bir adres kullanın.",
     save_failed: "Bağlantı bilgisi kaydedilemedi ({reason}).",
@@ -35,7 +35,10 @@ const MESSAGES = {
 
     connected: "✓ Bilgisayarınız bağlandı. Bu pencereyi kapatabilirsiniz. Geçmiş kullanımınız birkaç dakika içinde telefonda görünür.",
     history_not_started: "Geçmiş kullanım gönderimi başlatılamadı. Yeni oturumlarınız yine gelir. Geçmişi göndermek için: {cmd}",
+    // Hook'lar Claude Code açılırken okunur: kurulumdan önce açılmış pencereler veri göndermez.
+    restart_claude: "Açık Claude Code pencerelerini kapatıp yeniden açın.",
     disconnect_hint: "Bağlantıyı kesmek isterseniz: {cmd}",
+    uninstall_hint: "UsagEX'i bu bilgisayardan kaldırmak isterseniz: {cmd}",
 
     codex_connected: "✓ Codex bağlandı. Bu pencereyi kapatabilirsiniz. Geçmiş kullanımınız birkaç dakika içinde telefonda görünür.",
     codex_privacy: "Yalnız kullanım sayaçları ve limitler gönderilir. Proje ve bilgisayar adları gizlenir.",
@@ -55,19 +58,19 @@ const MESSAGES = {
     revoke_ok: "✓ Sunucudaki cihaz kaydı silindi.",
     revoke_gone: "· Bu bilgisayarın sunucuda kaydı zaten yoktu.",
     revoke_failed: "✗ Sunucudaki kayıt silinemedi ({reason}).",
-    revoke_manual: "Uygulamada Ayarlar → Bağlı bilgisayarlar bölümünden bu bilgisayarı silin.",
+    revoke_manual: "Uygulamada Ayarlar → Bilgisayarlar bölümünden bu bilgisayarı silin.",
     config_disabled: "✓ Bu bilgisayardaki bağlantı bilgisi silindi.",
     config_write_failed: "✗ {file} yazılamadı: {reason}",
     not_connected: "· Bu bilgisayar bağlanmamış görünüyor.",
     local_data_removed: "✓ Gönderilmeyi bekleyen yerel veriler silindi.",
     hooks_removed: "✓ UsagEX, Claude Code ayarlarından kaldırıldı.",
     disconnected: "Bağlantı kesildi. Bu bilgisayardan artık veri gönderilmeyecek.",
-    history_kept: "Geçmiş kullanımınız hesabınızda kalır. Tamamen silmek için uygulamada Ayarlar → Hesap → Hesabı sil.",
+    history_kept: "Geçmiş kullanımınız hesabınızda kalır. Tamamen silmek için uygulamada Ayarlar → Hesap → UsagEX hesabını sil.",
     reconnect: "Tekrar bağlamak için uygulamadan yeni kod alın.",
   },
   en: {
-    usage_claude: "Usage: connect.js <8-character code>. Get the code in the UsagEX app under Settings > Connect computer.",
-    usage_codex: "Usage: codex/connect.js <8-character code>. Get the code in the UsagEX app under Codex > Settings.",
+    usage_claude: "Usage: connect.js <8-character code>. Get the code in the UsagEX app under Settings → Computers.",
+    usage_codex: "Usage: codex/connect.js <8-character code>. Get the code in the UsagEX app under Codex → Settings → Computers.",
     node_too_old: "Node.js {version} is too old. UsagEX needs Node.js {min} or newer. Update it and try again: https://nodejs.org",
     unexpected: "Something went wrong: {reason}",
 
@@ -83,12 +86,12 @@ const MESSAGES = {
 
     network_error: "Could not reach the server. Check your internet connection and run the command again.",
     code_format: "The code has 8 characters (letters and digits). Type it exactly as the app shows it.",
-    code_invalid: "This code has expired or was already used. Get a new code in the app.",
+    code_invalid: "This code didn't work. It may be mistyped, expired or already used. Get a new code in the UsagEX app.",
     rate_limited: "Too many attempts. Wait a minute and try again.",
     server_busy: "The server is not responding right now ({status}). Try again in a few minutes.",
     server_error: "Could not connect (server response {status}). Get a new code in the app and try again.",
     bad_response: "The server sent an unexpected response. Nothing was connected. Please try again.",
-    wrong_provider: "This code is not for Codex. Get a new code in the app under Codex > Settings.",
+    wrong_provider: "This code is not for Codex. Get a new code in the app under Codex → Settings → Computers.",
     redirect_refused: "The server response points to a different address. The connection was refused for safety.",
     server_url_invalid: "The server address (USAGEX_SERVER_URL) is not valid. Use an HTTPS address.",
     save_failed: "Could not save the connection ({reason}).",
@@ -97,7 +100,9 @@ const MESSAGES = {
 
     connected: "✓ Your computer is connected. You can close this window. Your past usage will appear on your phone within a few minutes.",
     history_not_started: "Could not start sending your past usage. New sessions will still arrive. To send the history, run: {cmd}",
+    restart_claude: "Close and reopen any open Claude Code windows.",
     disconnect_hint: "To disconnect later, run: {cmd}",
+    uninstall_hint: "To remove UsagEX from this computer later, run: {cmd}",
 
     codex_connected: "✓ Codex is connected. You can close this window. Your past usage will appear on your phone within a few minutes.",
     codex_privacy: "Only usage counters and limits are sent. Project and computer names stay hidden.",
@@ -117,14 +122,14 @@ const MESSAGES = {
     revoke_ok: "✓ The device record on the server was deleted.",
     revoke_gone: "· The server had no record of this computer.",
     revoke_failed: "✗ Could not delete the record on the server ({reason}).",
-    revoke_manual: "Remove this computer in the app under Settings → Connected computers.",
+    revoke_manual: "Remove this computer in the app under Settings → Computers.",
     config_disabled: "✓ The connection details on this computer were deleted.",
     config_write_failed: "✗ Could not write {file}: {reason}",
     not_connected: "· This computer does not look connected.",
     local_data_removed: "✓ Local data waiting to be sent was deleted.",
     hooks_removed: "✓ UsagEX was removed from the Claude Code settings.",
     disconnected: "Disconnected. This computer will no longer send data.",
-    history_kept: "Your past usage stays in your account. To delete everything, go to Settings → Account → Delete account in the app.",
+    history_kept: "Your past usage stays in your account. To delete everything, go to Settings → Account → Delete UsagEX account in the app.",
     reconnect: "To connect again, get a new code in the app.",
   },
 };

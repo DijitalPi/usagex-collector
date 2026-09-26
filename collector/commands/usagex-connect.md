@@ -7,7 +7,7 @@ Kullanıcı bu bilgisayarı (Mac/Linux/Windows) UsagEX hesabına bağlamak istiy
 
 Adımlar:
 1. Argüman olarak 8 karakterli bir kod verilmişse (`$ARGUMENTS`), doğrudan onu kullan.
-   Verilmemişse kullanıcıya sor: "UsagEX uygulamasında Ayarlar > Bilgisayar bağla'dan
+   Verilmemişse kullanıcıya sor: "UsagEX uygulamasında Ayarlar → Bilgisayarlar bölümünden
    8 karakterli kodu al ve buraya yaz."
 2. Şu komutu çalıştır (kodu yerine koy):
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/connect.js" <kod>`

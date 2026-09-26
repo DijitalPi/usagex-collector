@@ -365,7 +365,7 @@ test("disconnect iptal ucunu cihaz token'ıyla, YEREL TEMİZLİKTEN ÖNCE çağ�
 
   const metin = satirlar.join("\n");
   assert.match(metin, /Sunucudaki cihaz kaydı silindi/);
-  assert.doesNotMatch(metin, /Bağlı bilgisayarlar/, "silindiyse kullanıcıyı ikinci bir işe göndermemeli");
+  assert.doesNotMatch(metin, /Ayarlar → Bilgisayarlar/, "silindiyse kullanıcıyı ikinci bir işe göndermemeli");
 
   // ve yerel temizlik yine tamamlandı
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "usagex.json"), "utf8")).enabled, false);
@@ -386,7 +386,7 @@ test("iptal BAŞARISIZ olsa da yerel temizlik tamamlanır + uyarı basılır", a
   const metin = satirlar.join("\n");
   assert.match(metin, /Sunucudaki kayıt silinemedi/);
   assert.match(metin, /ECONNREFUSED/, "sebep söylenmeli");
-  assert.match(metin, /Ayarlar → Bağlı bilgisayarlar/, "elle silme yolu gösterilmeli");
+  assert.match(metin, /Ayarlar → Bilgisayarlar bölümünden/, "elle silme yolu uygulamadaki gerçek adla gösterilmeli");
 
   // asıl istek ("veri göndermeyi kes") her hâlükârda yerine getirilir
   assert.strictEqual(JSON.parse(fs.readFileSync(path.join(dir, "usagex.json"), "utf8")).enabled, false);
@@ -402,7 +402,7 @@ test("401 = sunucuda zaten yok → başarı sayılır, uyarı basılmaz", async 
   const metin = satirlar.join("\n");
   assert.match(metin, /kaydı zaten yoktu/);
   assert.doesNotMatch(metin, /silinemedi/);
-  assert.doesNotMatch(metin, /Bağlı bilgisayarlar/);
+  assert.doesNotMatch(metin, /Ayarlar → Bilgisayarlar/);
 });
 
 test("500 geçici hata → uyarı basılır (kullanıcı elle silsin)", async () => {

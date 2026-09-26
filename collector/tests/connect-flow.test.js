@@ -93,6 +93,20 @@ test("i18n: tr ve en aynı anahtarları taşır, Türkçede uzun tire yok", () =
   }
 });
 
+// Uygulamadaki yerler GERÇEK adlarıyla yazılır: "Ayarlar > Bilgisayar bağla" ya da
+// "Bağlı bilgisayarlar" diye bir yer yok; bölümün adı "Bilgisayarlar".
+test("i18n: uygulamadaki yerler gerçek adlarıyla; yanlış yazılan kod da aynı mesajı alır", () => {
+  const { MESSAGES } = require("../lib/i18n");
+  const all = (l) => Object.values(MESSAGES[l]).join("\n");
+  assert.doesNotMatch(all("tr"), /Bilgisayar bağla|Bağlı bilgisayarlar|Hesabı sil|Ayarlar >/);
+  assert.doesNotMatch(all("en"), /Connect computer|Connected computers|Settings >/);
+  for (const k of ["usage_claude", "revoke_manual"]) assert.match(MESSAGES.tr[k], /Ayarlar → Bilgisayarlar/, k);
+  for (const k of ["usage_codex", "wrong_provider"]) assert.match(MESSAGES.tr[k], /Codex → Ayarlar → Bilgisayarlar/, k);
+  assert.match(MESSAGES.tr.history_kept, /Ayarlar → Hesap → UsagEX hesabını sil/);
+  assert.equal(MESSAGES.tr.code_invalid, "Bu kod çalışmadı: yanlış yazılmış, süresi dolmuş ya da kullanılmış olabilir. UsagEX uygulamasından yeni kod alın.");
+  assert.match(MESSAGES.en.code_invalid, /mistyped, expired or already used/);
+});
+
 test("ön kontrol: bozuk settings.json → kod HARCANMAZ, hiçbir şey değişmez", async (t) => {
   const box = sandbox(t);
   const server = await fakeServer(t);
@@ -171,6 +185,49 @@ test("başarılı bağlantı İngilizce; Claude Code yoksa bilgi notu", async (t
   assert.doesNotMatch(text, /Bilgisayarınız/);
   // Hook'lar yine yazıldı: Claude Code kurulunca veri akar.
   assert.ok(readJson(path.join(box.claude, "settings.json")).hooks.Stop);
+});
+
+// Hook'lar Claude Code açılırken okunur: kurulumdan önce açılmış pencereler veri
+// göndermez. /join kurulumu (~/.usagex/collector) tek komutla kaldırılır.
+test("tek satır kurulumu: açık pencereleri yeniden başlatma notu ve kaldırma komutu (TR/EN)", async (t) => {
+  for (const [l, restart, hint, route] of [
+    ["tr", "Açık Claude Code pencerelerini kapatıp yeniden açın.", "UsagEX'i bu bilgisayardan kaldırmak isterseniz: ", "kaldir"],
+    ["en", "Close and reopen any open Claude Code windows.", "To remove UsagEX from this computer later, run: ", "uninstall"],
+  ]) {
+    const box = sandbox(t);
+    box.root = path.join(box.home, ".usagex", "collector");
+    const server = await fakeServer(t);
+    const r = await runConnect(t, box, server, { lang: l });
+    assert.equal(r.exit, 0, r.err.join("\n"));
+    const at = (s) => r.out.indexOf(s);
+    assert.ok(at(restart) > at(msg("connected", {}, l)), "not bağlantı mesajının hemen ardından");
+    assert.equal(r.out.at(-1), `${hint}curl -fsSL ${server.url}/${route} | sh`, "sunucu adresi bağlantıdan gelir");
+    assert.ok(!r.out.join("\n").includes("disconnect.js"));
+  }
+});
+
+test("yeniden başlatma notu: Claude Code yoksa ya da plugin olarak kuruluysa basılmaz", async (t) => {
+  const restart = msg("restart_claude", {}, "tr");
+  const box = sandbox(t);
+  fs.rmSync(box.claude, { recursive: true });
+  let r = await runConnect(t, box, await fakeServer(t));
+  assert.equal(r.exit, 0);
+  assert.ok(!r.out.includes(restart), "Claude Code yok: claude_missing yeterli");
+  const plug = sandbox(t);
+  r = await runConnect(t, plug, await fakeServer(t), { extraEnv: { CLAUDE_PLUGIN_ROOT: plug.root } });
+  assert.equal(r.exit, 0);
+  assert.ok(!r.out.includes(restart));
+});
+
+test("uninstallCommand: yalnız ~/.usagex/collector kurulumunda, bağlantının sunucusuyla", () => {
+  const { uninstallCommand } = require("../lib/runtime");
+  const home = "/home/u";
+  const root = "/home/u/.usagex/collector";
+  assert.equal(uninstallCommand({ root, home, server: "https://usagex.dijitalpi.com/ingest" }), "curl -fsSL https://usagex.dijitalpi.com/kaldir | sh");
+  assert.equal(uninstallCommand({ root, home, server: "https://usagex.dijitalpi.com", lang: "en" }), "curl -fsSL https://usagex.dijitalpi.com/uninstall | sh");
+  assert.equal(uninstallCommand({ root: "/home/u/.claude/plugins/usagex", home, server: "https://x.test" }), null, "plugin");
+  assert.equal(uninstallCommand({ root, home, server: "not a url" }), null);
+  assert.equal(uninstallCommand({ root, home, server: "file:///etc" }), null);
 });
 
 for (const [status, key] of [[401, "code_invalid"], [410, "code_invalid"], [409, "code_invalid"], [429, "rate_limited"]]) {
@@ -326,6 +383,22 @@ test("Codex connect: servis USAGEX_NODE ile kurulur, ilk tarama ayrık başlar, 
   assert.doesNotMatch(text, /[{}]/);
 });
 
+test("Codex connect: /join kurulumunda kaldırma komutu; yeniden başlatma notu yok (oturum dosyaları okunur)", async (t) => {
+  const box = codexBox(t);
+  const server = await fakeServer(t, { body: { provider: "codex", device_token: "cx-1" } });
+  const { main } = require("../codex/connect");
+  const c = capture();
+  const exit = await main("ABCD2345", {
+    env: { USAGEX_SERVER_URL: server.url, USAGEX_LANG: "en", USAGEX_NODE: "/opt/usagex/node/bin/node" },
+    home: box.home, codexHome: box.codexHome, dir: box.dir, platform: "darwin", fetchImpl: fetch, spawnImpl: stubSpawn(),
+    installService: (o) => ({ installed: true, kind: "launchd", command: [o.node, o.script, "--watch"] }),
+    root: path.join(box.home, ".usagex", "collector"), out: c.o, err: c.e,
+  });
+  assert.equal(exit, 0, c.err.join("\n"));
+  assert.equal(c.out.at(-1), `To remove UsagEX from this computer later, run: curl -fsSL ${server.url}/uninstall | sh`);
+  assert.ok(!c.out.some((s) => /Claude Code windows|reopen/.test(s)));
+});
+
 test("Codex connect: Linux'ta systemd yoksa tek satırlık yerelleştirilmiş not", async (t) => {
   const box = codexBox(t);
   const server = await fakeServer(t, { body: { provider: "codex", device_token: "cx-1" } });
@@ -350,7 +423,7 @@ test("Codex connect: Claude kodu ve süresi dolmuş kod yerelleştirilir", async
   const expired = await fakeServer(t, { status: 410, body: {} });
   r = await runCodex(t, box, expired, { l: "en" });
   assert.equal(r.exit, 1);
-  assert.match(r.err.join("\n"), /expired or was already used/);
+  assert.match(r.err.join("\n"), /mistyped, expired or already used/);
   assert.equal(fs.existsSync(path.join(box.dir, "usagex.json")), false);
 });
 

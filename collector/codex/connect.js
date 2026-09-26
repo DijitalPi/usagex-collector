@@ -11,7 +11,7 @@ const { machineId, platformName, saveConnection, claim, parseCode } = require('.
 const { machineLabel } = require('../lib/payload');
 const { nodeVersionProblem, MIN_MAJOR } = require('../lib/node-version');
 const { msg, lang, UserError } = require('../lib/i18n');
-const { usagexHome, writeNodePath, checkWritable, commandLine, spawnDetached } = require('../lib/runtime');
+const { usagexHome, writeNodePath, checkWritable, commandLine, spawnDetached, uninstallCommand } = require('../lib/runtime');
 const service = require('./service');
 
 // Kodu harcar ve bağlantıyı kaydeder. Sorun varsa UserError fırlatır (dosya yazılmaz).
@@ -41,6 +41,7 @@ async function main(argCode, {
   fetchImpl = globalThis.fetch,
   spawnImpl,
   installService = service.install,
+  root = path.resolve(__dirname, '..'),
   out = s => console.log(s),
   err = s => console.error(s),
 } = {}) {
@@ -81,7 +82,11 @@ async function main(argCode, {
   }
   if (!first.started) out(t('history_not_started', { cmd: commandLine([node, collect, '--once']) }));
   if (!codexVar) out(t('codex_missing'));
-  out(t('disconnect_hint', { cmd: commandLine([node, path.join(__dirname, 'disconnect.js')]) }));
+  // Codex'e yeniden başlatma notu yok: collector oturum dosyalarını dakikada bir
+  // okur, açık Codex pencereleri de kapsanır (Claude'daki hook sorunu burada yok).
+  const uninstall = uninstallCommand({ root, home, server: env.USAGEX_SERVER_URL || 'https://usagex.dijitalpi.com', lang: lang(env) });
+  if (uninstall) out(t('uninstall_hint', { cmd: uninstall }));
+  else out(t('disconnect_hint', { cmd: commandLine([node, path.join(__dirname, 'disconnect.js')]) }));
   return 0;
 }
 

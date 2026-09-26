@@ -11,7 +11,7 @@ UsagEX collector kurulumunu yap. Adımlar:
 1. `~/.claude/usagex.json` dosyası var mı bak. Varsa mevcut ayarları göster
    (device_token'ı maskele) ve kullanıcıya güncellemek isteyip istemediğini sor.
 2. **Asıl yol — eşleştirme kodu:** Kullanıcıya UsagEX uygulamasında
-   **Ayarlar > Bilgisayar bağla > Eşleştirme kodu üret** adımını izletip
+   **Ayarlar → Bilgisayarlar → Bağlantı kodu oluştur** adımını izletip
    8 karakterli kodu iste, sonra şunu çalıştır:
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/connect.js" <kod>`
    Bu komut önce `settings.json`'ı kontrol eder (bozuksa kodu harcamadan durur),

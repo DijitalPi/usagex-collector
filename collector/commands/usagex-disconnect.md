@@ -23,10 +23,10 @@ Adımlar:
      cihaz daha önce uygulamadan silinmiş demektir.
    - `✗ Sunucudaki kayıt silinemedi …` (ağ yok / timeout / 5xx / ingest_url https
      değil) → **yerel temizlik yine tamamlanmıştır**, veri gönderimi durdu; ama
-     kullanıcı uygulamada **Ayarlar → Bağlı bilgisayarlar** üzerinden bu
+     kullanıcı uygulamada **Ayarlar → Bilgisayarlar** üzerinden bu
      bilgisayarı elle silmeli. Bu uyarıyı atlama.
    - Her durumda: **geçmiş oturum istatistikleri hesapta kalır.** Tamamını silmek
-     için uygulamada **Ayarlar → Hesap → Hesabı sil**.
+     için uygulamada **Ayarlar → Hesap → UsagEX hesabını sil**.
 4. Tekrar bağlanmak isterse: `/usagex-connect <8-karakterli-kod>`.
 
 Not: yalnızca veri göndermeyi **geçici** durdurmak isteyen kullanıcı için

@@ -1,7 +1,7 @@
 # UsagEX collector
 
 Codex desteği `codex/` altındadır ve Claude kurulumundan ayrıdır. Mobil uygulamada
-Codex → Ayarlar → Bilgisayar bağla ile alınan kodu kullanın:
+Codex → Ayarlar → Bilgisayarlar bölümünden alınan kodu kullanın:
 
 ```sh
 node collector/codex/connect.js ABCD2345
@@ -31,7 +31,7 @@ token/maliyet özetini UsagEX backend'ine gönderir. **OAuth token'ı makineden
 ```
 /plugin marketplace add dijitalpi/usagex-collector
 /plugin install usagex
-/usagex-connect <8-karakterli-kod>     # kod: UsagEX app → Ayarlar → Bilgisayar bağla
+/usagex-connect <8-karakterli-kod>     # kod: UsagEX app → Ayarlar → Bilgisayarlar
 ```
 
 Node 18+ gerekir (global `fetch`). Bağlantı kurulunca son 90 gün arka planda
@@ -39,6 +39,16 @@ backfill edilir (`~/.usagex/backfill.log`). Kurulum betiğinden gelen
 `USAGEX_LANG` (tr|en) mesaj dilini, `USAGEX_NODE` hook ve servislerin
 kullanacağı Node yolunu belirler. Bağlantıyı kesmek için `/usagex-disconnect`, yalnız duraklatmak
 için `~/.claude/usagex.json` içinde `"enabled": false`.
+
+Tek satırlık kurulumla (`/join`) gelen UsagEX'i bilgisayardan kaldırmak için:
+
+```sh
+curl -fsSL https://usagex.dijitalpi.com/kaldir | sh     # İngilizce mesajlar: /uninstall
+```
+
+Betik Claude Code hook'larını ve Codex servisini kaldırır, sunucudaki cihaz
+kaydını siler, ardından yalnız `~/.usagex` klasörünü siler. `~/.claude` ve
+`~/.codex` silinmez.
 
 ## Ne zaman ne gönderilir
 

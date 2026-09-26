@@ -32,6 +32,18 @@ function writeNodePath({ env = process.env, home = os.homedir() } = {}) {
   return node;
 }
 
+// Tek satırlık kurulumun (/join → ~/.usagex/collector) kaldırma komutu. Sunucu
+// adresi bağlantının kendisinden gelir (self-host kurulum kendi sunucusunu
+// gösterir). Plugin ya da geliştirme kopyasında null: onlar kendi disconnect
+// betiğini kullanır, ~/.usagex'i silmek onları kaldırmaz.
+function uninstallCommand({ root, home = os.homedir(), server, lang = "tr" } = {}) {
+  if (!root || path.resolve(root) !== path.join(usagexHome(home), "collector")) return null;
+  let origin;
+  try { origin = new URL(server).origin; } catch { return null; }
+  if (!/^https?:\/\//.test(origin)) return null;
+  return `curl -fsSL ${origin}/${lang === "en" ? "uninstall" : "kaldir"} | sh`;
+}
+
 // ~/.usagex yazılabilir mi? Kod harcanmadan önce sorulur.
 function checkWritable(dir) {
   try {
@@ -81,4 +93,4 @@ function spawnDetached(node, args, { log, env = process.env, spawnImpl = spawn }
   }
 }
 
-module.exports = { usagexHome, resolveNode, writeNodePath, checkWritable, shQuote, commandLine, spawnDetached };
+module.exports = { usagexHome, resolveNode, writeNodePath, checkWritable, shQuote, commandLine, spawnDetached, uninstallCommand };

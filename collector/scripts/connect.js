@@ -10,7 +10,7 @@ const { claudeDir, readRawConfig, ingestUrlProblem } = require("../lib/config");
 const { machineLabel } = require("../lib/payload");
 const { nodeVersionProblem, MIN_MAJOR } = require("../lib/node-version");
 const { msg, lang, UserError } = require("../lib/i18n");
-const { usagexHome, writeNodePath, checkWritable, commandLine, spawnDetached } = require("../lib/runtime");
+const { usagexHome, writeNodePath, checkWritable, commandLine, spawnDetached, uninstallCommand } = require("../lib/runtime");
 const { readSettings, installHooks } = require("./install-hooks");
 
 const { withLock } = require("../lib/file-lock");
@@ -191,9 +191,14 @@ async function connect(argCode, {
   // 6. Sonuç.
   if (!send_project_names) out(t("privacy_kept"));
   out(t("connected"));
+  // Claude Code hook'ları açılışta okur: zaten açık pencereler veri göndermez.
+  if (installHooksToo && claudeVar) out(t("restart_claude"));
   if (!bf.started) out(t("history_not_started", { cmd: commandLine([node, backfill, "90"]) }));
   if (!claudeVar) out(t("claude_missing"));
-  out(t("disconnect_hint", { cmd: commandLine([node, path.join(root, "scripts", "disconnect.js")]) }));
+  // /join kurulumu tek komutla kaldırılır (uygulama ve /bagla sayfası da aynı komutu gösterir).
+  const uninstall = uninstallCommand({ root, home, server: ingest_url, lang: lang(env) });
+  if (uninstall) out(t("uninstall_hint", { cmd: uninstall }));
+  else out(t("disconnect_hint", { cmd: commandLine([node, path.join(root, "scripts", "disconnect.js")]) }));
   return 0;
 }
 
