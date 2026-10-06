@@ -1,5 +1,6 @@
 // Kurulum ortamı yardımcıları: hangi Node yorumlayıcısı kullanılacak,
 // ~/.usagex/node-path, arka plan işleri ve kabuk tırnaklama.
+require("./win-fs"); // Windows: dosya kilidinde rename yeniden dener
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -36,12 +37,15 @@ function writeNodePath({ env = process.env, home = os.homedir() } = {}) {
 // adresi bağlantının kendisinden gelir (self-host kurulum kendi sunucusunu
 // gösterir). Plugin ya da geliştirme kopyasında null: onlar kendi disconnect
 // betiğini kullanır, ~/.usagex'i silmek onları kaldırmaz.
-function uninstallCommand({ root, home = os.homedir(), server, lang = "tr" } = {}) {
+// Windows'ta aynı iş PowerShell betiğiyle: irm …/kaldir.ps1 | iex.
+function uninstallCommand({ root, home = os.homedir(), server, lang = "tr", platform = process.platform } = {}) {
   if (!root || path.resolve(root) !== path.join(usagexHome(home), "collector")) return null;
   let origin;
   try { origin = new URL(server).origin; } catch { return null; }
   if (!/^https?:\/\//.test(origin)) return null;
-  return `curl -fsSL ${origin}/${lang === "en" ? "uninstall" : "kaldir"} | sh`;
+  const route = lang === "en" ? "uninstall" : "kaldir";
+  if (platform === "win32") return `irm ${origin}/${route}.ps1 | iex`;
+  return `curl -fsSL ${origin}/${route} | sh`;
 }
 
 // ~/.usagex yazılabilir mi? Kod harcanmadan önce sorulur.
@@ -66,7 +70,13 @@ function shQuote(s) {
 }
 
 // Kullanıcıya gösterilecek komut satırı: node ve betik tırnaklı.
-function commandLine(parts) {
+// Windows'ta kullanıcı PowerShell'dedir: tırnaklı yol çağrı işleciyle (& '…')
+// çalışır; tek tırnak içinde $ ve ` açılmaz.
+function commandLine(parts, platform = process.platform) {
+  if (platform === "win32") {
+    const ps = (p) => `'${String(p).replace(/'/g, "''")}'`;
+    return "& " + parts.map((p, i) => (i === 0 || p.includes("/") || p.includes("\\") || /\s/.test(p) ? ps(p) : p)).join(" ");
+  }
   return parts.map((p, i) => (i === 0 || p.includes("/") || p.includes("\\") || /\s/.test(p) ? shQuote(p) : p)).join(" ");
 }
 

@@ -4,12 +4,14 @@
 // sürerken, Claude Code boştayken ya da kullanıcı claude.ai'da çalışırken
 // sunucuya hiç ölçüm gitmiyor ve eşik bildirimleri üretilemiyordu.
 // macOS: launchd LaunchAgent. Linux: systemd kullanıcı zamanlayıcısı.
+// Windows: Görev Zamanlayıcı, konsol penceresi açmadan (lib/win-task.js).
 // Kurulamazsa bağlantı YİNE tamamlanır (hook'lar çalışmaya devam eder).
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
-const { resolveNode } = require("../lib/runtime");
+const { resolveNode, usagexHome } = require("../lib/runtime");
+const winTask = require("../lib/win-task");
 
 const LABEL = "com.dijitalpi.usagex.poll";
 const UNIT = "usagex-poll";
@@ -38,7 +40,11 @@ function definition({ platform = process.platform, home = os.homedir(), node = r
         text: `[Unit]\nDescription=UsagEX usage poller timer\n\n[Timer]\nOnBootSec=60\nOnUnitActiveSec=${INTERVAL_S}\n\n[Install]\nWantedBy=timers.target\n` },
     ] };
   }
-  return null; // Windows: zamanlanmış görev yok, hook'lar çalışmaya devam eder
+  if (platform === "win32") {
+    return winTask.definition({ dir: usagexHome(home), id: "poll", name: "Poll", description: "UsagEX: Claude usage poller",
+      intervalMinutes: INTERVAL_S / 60, node, script, envVars: claudeConfigDir ? { CLAUDE_CONFIG_DIR: claudeConfigDir } : {} });
+  }
+  return null;
 }
 
 function writeAtomic(file, text) {
@@ -54,6 +60,7 @@ function install(options = {}) {
     const def = definition(options);
     if (!def) return { installed: false };
     const run = options.run || spawnSync;
+    if (def.kind === "schtasks") return { installed: winTask.install(def, { run }) };
     if (def.kind === "launchd") {
       const uid = options.uid ?? process.getuid();
       const { file, text } = def.files[0];
@@ -74,6 +81,7 @@ function uninstall(options = {}) {
     const def = definition(options);
     if (!def) return;
     const run = options.run || spawnSync;
+    if (def.kind === "schtasks") { winTask.uninstall(def, { run }); return; }
     if (def.kind === "launchd") {
       const uid = options.uid ?? process.getuid();
       if (fs.existsSync(def.files[0].file)) run("launchctl", ["bootout", `gui/${uid}`, def.files[0].file], { stdio: "ignore" });

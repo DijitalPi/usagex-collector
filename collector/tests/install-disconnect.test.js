@@ -266,9 +266,9 @@ test("boşluklu ve özel karakterli kurulum yolu kabukta güvenle tırnaklanır"
   // Kabuk gerçekten tek argüman görmeli.
   const echo = spawnSync("sh", ["-c", tuhaf.replace(/^sh /, "printf '%s|' ")], { encoding: "utf8" });
   assert.strictEqual(echo.stdout, "/tmp/it's $HOME `x`/usagex/scripts/run-hook.sh|heartbeat.js|");
-  // Windows dalı değişmedi.
+  // Windows: ileri bölülü, boşluksuz yol tırnaksız (Git Bash ve PowerShell'de çalışır; tests/windows.test.js).
   assert.strictEqual(hookCommand({ dir: "C:\\u\\usagex", file: "heartbeat.js", platform: "win32", nodePath: "C:\\node.exe" }),
-    'cmd /c ""C:\\node.exe" "' + path.join("C:\\u\\usagex", "hooks", "heartbeat.js") + '""');
+    "C:/node.exe C:/u/usagex/hooks/heartbeat.js");
 });
 
 test("hook girdisine timeout yazılır (yavaş diskte yarıda kesilmesin)", () => {

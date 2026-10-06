@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Windows Görev Zamanlayıcı ortamı --env=AD=değer ile verir (lib/task-env.js).
+require('../lib/task-env').applyEnvArgs();
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');

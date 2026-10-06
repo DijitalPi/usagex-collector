@@ -8,7 +8,8 @@ node collector/codex/connect.js ABCD2345
 ```
 
 `connect.js` kodu harcar, Mac'te LaunchAgent'ı, Linux'ta `systemctl --user`
-varsa `usagex-codex.service` + `.timer` birimlerini kurar ve ilk taramayı arka
+varsa `usagex-codex.service` + `.timer` birimlerini, Windows'ta Görev
+Zamanlayıcı'da `\UsagEX\Codex` görevini kurar ve ilk taramayı arka
 planda başlatır (`~/.usagex/codex-collect.log`). systemd yoksa
 `node collector/codex/collect.js --watch` açık tutulur. Kaldırmak için
 `node collector/codex/disconnect.js`. Mesajlar `USAGEX_LANG` (tr|en) ile, Node yolu
@@ -49,6 +50,26 @@ curl -fsSL https://usagex.dijitalpi.com/kaldir | sh     # İngilizce mesajlar: /
 Betik Claude Code hook'larını ve Codex servisini kaldırır, sunucudaki cihaz
 kaydını siler, ardından yalnız `~/.usagex` klasörünü siler. `~/.claude` ve
 `~/.codex` silinmez.
+
+### Windows
+
+Kurulum ve kaldırma PowerShell'den yapılır (Windows PowerShell 5.1 ya da 7;
+yönetici yetkisi gerekmez). `usagex.dijitalpi.com/bagla` sayfası Windows
+tarayıcısında doğru komutu verir:
+
+```powershell
+irm "https://usagex.dijitalpi.com/join/KOD.ps1?l=tr" | iex     # kurulum
+irm https://usagex.dijitalpi.com/kaldir.ps1 | iex               # kaldırma (EN: uninstall.ps1)
+```
+
+Betik Node'u gerekirse `%USERPROFILE%\.usagex\node` altına indirir (resmi
+dağıtım, SHA-256 doğrulamalı) ve collector'ı `%USERPROFILE%\.usagex\collector`
+altına açar. Claude Code hook'ları Windows'ta Git Bash ile, Git Bash yoksa
+PowerShell ile çalışır; hook komutu ileri bölülü yazılır ve yolda boşluk yoksa
+iki kabukta da çalışan tırnaksız biçimdedir (`scripts/install-hooks.js`).
+Codex taraması Görev Zamanlayıcı'da her dakika, konsol penceresi açmadan
+çalışır (`lib/win-task.js`: wscript + JScript başlatıcı, pilde de çalışır).
+WSL içinde kullanılan Claude Code ya da Codex için Linux komutu geçerlidir.
 
 ## Ne zaman ne gönderilir
 

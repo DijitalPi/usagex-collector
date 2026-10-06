@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // launchd/systemd poller — hook'lardan bağımsız, periyodik taze limit gönderir.
 // Hook heartbeat'iyle aynı throttle state'ini paylaşır; çift gönderim olmaz.
+// Windows Görev Zamanlayıcı ortamı --env=AD=değer ile verir (lib/task-env.js).
+require("../lib/task-env").applyEnvArgs();
 const { loadConfig } = require("../lib/config");
 const { heartbeatDue, markHeartbeatSent } = require("../lib/state");
 const { getPlanUsage } = require("../lib/oauth-usage");

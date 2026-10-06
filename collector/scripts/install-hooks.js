@@ -55,16 +55,44 @@ function readSettings(settingsPath) {
   return { settings, raw };
 }
 
+// Windows'ta Claude Code hook'u Git Bash ile çalıştırır; Git Bash kurulu
+// değilse PowerShell ile (code.claude.com/docs/en/hooks-guide, "Git Bash on
+// Windows, or PowerShell when Git Bash isn't installed"). Git Bash yolu
+// CLAUDE_CODE_GIT_BASH_PATH ile de verilebilir (ortam ya da settings.json env).
+function gitBashAvailable({ env = process.env, settings = {}, exists = fs.existsSync } = {}) {
+  const adaylar = [env.CLAUDE_CODE_GIT_BASH_PATH, settings && settings.env && settings.env.CLAUDE_CODE_GIT_BASH_PATH];
+  for (const kok of [env.ProgramFiles, env["ProgramFiles(x86)"], env.ProgramW6432, env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, "Programs")]) {
+    if (kok) adaylar.push(path.win32.join(kok, "Git", "bin", "bash.exe"));
+  }
+  // PATH'teki git.exe (Git\cmd, Git\bin ya da Git\mingw64\bin) → Git\bin\bash.exe
+  for (const d of String(env.PATH || env.Path || "").split(";").filter(Boolean)) {
+    if (!exists(path.win32.join(d, "git.exe"))) continue;
+    const ust = path.win32.dirname(d);
+    adaylar.push(path.win32.join(ust, "bin", "bash.exe"), path.win32.join(path.win32.dirname(ust), "bin", "bash.exe"));
+  }
+  return adaylar.some((p) => typeof p === "string" && p && exists(p));
+}
+
 // Hook komutu.
 // macOS/Linux: `sh "<dizin>/scripts/run-hook.sh" heartbeat.js`. run-hook.sh
 // Node'u her çalışmada bulur (USAGEX_NODE, ~/.usagex/node-path, PATH, bilinen
 // yerler); Homebrew/nvm ile Node güncellenince hook'lar sessizce ölmez.
-// WINDOWS: cmd.exe, komut satırı tırnakla BAŞLIYORSA ilk ve son tırnağı kırpar;
-// belgelenmiş çözüm tamamını `cmd /c "…"` içine almak.
-function hookCommand({ dir, file, nodePath = process.execPath, platform = process.platform }) {
+// WINDOWS: yollar ileri bölüyle (Git Bash ters bölüyü kaçış sayar). Yolda boşluk
+// ya da kabuk karakteri yoksa TIRNAKSIZ: bu biçim Git Bash'te de PowerShell'de
+// de çalışır. Boşluk varsa ("C:/Users/Ada Lovelace/…") tek biçim ikisine birden
+// uymaz: Git Bash varsa çift tırnak, yoksa PowerShell çağrı işleci (& '…').
+// Eski `cmd /c ""C:\…""` biçimi Git Bash'te ters bölüleri yutuyordu.
+const WIN_PLAIN = /^[\p{L}\p{N}_.:\/+-]+$/u;
+function hookCommand({ dir, file, nodePath = process.execPath, platform = process.platform, gitBash }) {
   if (platform === "win32") {
-    const düz = `"${nodePath}" "${path.join(dir, "hooks", file)}"`;
-    return `cmd /c "${düz}"`;
+    const fwd = (p) => String(p).replace(/\\/g, "/");
+    const node = fwd(nodePath), script = fwd(path.win32.join(dir, "hooks", file));
+    if (WIN_PLAIN.test(node) && WIN_PLAIN.test(script)) return `${node} ${script}`;
+    // Git Bash çift tırnağında $ ve ` açılır: kaçışlanır.
+    const bq = (p) => `"${p.replace(/[$`"]/g, "\\$&")}"`;
+    if (gitBash ?? gitBashAvailable()) return `${bq(node)} ${bq(script)}`;
+    const ps = (p) => `'${p.replace(/'/g, "''")}'`;
+    return `& ${ps(node)} ${ps(script)}`;
   }
   return `sh ${shQuote(path.join(dir, "scripts", "run-hook.sh"))} ${file}`;
 }
@@ -104,7 +132,8 @@ function installHooks({
   const { settings, raw } = readSettings(settingsPath);
   // Windows'ta hook doğrudan node'u çağırır; diğerlerinde run-hook.sh node-path'i okur.
   const node = writeNodePath({ env, home });
-  mergeHooks(settings, { dir, platform, nodePath: nodePath || node });
+  const gitBash = platform === "win32" ? gitBashAvailable({ env, settings }) : undefined;
+  mergeHooks(settings, { dir, platform, nodePath: nodePath || node, gitBash });
 
   // Transkript saklama: VARSAYILAN DOKUNMAMAK (disk + gizlilik). İsteyen
   // `--keep-transcripts` ile açar.
@@ -166,4 +195,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { installHooks, readSettings, hookCommand, isUsagexHook, EVENTS };
+module.exports = { installHooks, readSettings, hookCommand, gitBashAvailable, isUsagexHook, EVENTS };

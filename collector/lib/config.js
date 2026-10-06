@@ -1,3 +1,4 @@
+require("./win-fs"); // Windows: dosya kilidinde rename yeniden dener
 const fs = require("fs");
 const os = require("os");
 const path = require("path");

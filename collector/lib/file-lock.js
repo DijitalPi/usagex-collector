@@ -1,3 +1,4 @@
+require("./win-fs"); // Windows: dosya kilidinde rename yeniden dener
 const fs = require("node:fs");
 const crypto = require("node:crypto");
 

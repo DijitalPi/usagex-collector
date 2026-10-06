@@ -2,14 +2,17 @@
 // Separate user service: works with CLI and desktop rollouts, preserves notify
 // and all existing Codex configuration. No prompt is passed to this process.
 // macOS: LaunchAgent running collect.js --watch. Linux: systemd --user
-// service + timer running one scan per minute. Node comes from USAGEX_NODE /
-// ~/.usagex/node-path (unresolved path, survives Node upgrades).
+// service + timer running one scan per minute. Windows: Task Scheduler task
+// running one scan per minute without a console window (lib/win-task.js).
+// Node comes from USAGEX_NODE / ~/.usagex/node-path (unresolved path,
+// survives Node upgrades).
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { codexDir } = require('./config');
-const { resolveNode } = require('../lib/runtime');
+const { resolveNode, usagexHome } = require('../lib/runtime');
+const winTask = require('../lib/win-task');
 const LABEL = 'com.dijitalpi.usagex.codex';
 const UNIT = 'usagex-codex';
 const INTERVAL_S = 60;
@@ -31,6 +34,10 @@ function definition({ platform = process.platform, home = os.homedir(), codexHom
       { file: path.join(dir, `${UNIT}.timer`),
         text: `[Unit]\nDescription=UsagEX Codex usage scan timer\n\n[Timer]\nOnBootSec=60\nOnUnitActiveSec=${INTERVAL_S}\n\n[Install]\nWantedBy=timers.target\n` },
     ] };
+  }
+  if (platform === 'win32') {
+    return winTask.definition({ dir: usagexHome(home), id: 'codex', name: 'Codex', description: 'UsagEX: Codex usage scan',
+      intervalMinutes: INTERVAL_S / 60, node, script, envVars: { CODEX_HOME: codexHome } });
   }
   return null;
 }
@@ -55,6 +62,7 @@ function install(options = {}) {
     const def = definition({ ...options, node });
     if (!def) return { installed: false, kind: null, command };
     const run = options.run || spawnSync;
+    if (def.kind === 'schtasks') return { installed: winTask.install(def, { run }), kind: 'schtasks', command };
     if (def.kind === 'launchd') {
       const uid = options.uid ?? process.getuid();
       run('launchctl', ['bootout', `gui/${uid}`, def.file], { stdio: 'ignore' });
@@ -74,6 +82,7 @@ function install(options = {}) {
 function uninstall(options = {}) {
   try {
     const def = definition(options);
+    if (def && def.kind === 'schtasks') return winTask.uninstall(def, { run: options.run || spawnSync });
     if (!def || !def.files.some(f => fs.existsSync(f.file))) return false;
     const run = options.run || spawnSync;
     if (def.kind === 'launchd') run('launchctl', ['bootout', `gui/${options.uid ?? process.getuid()}`, def.file], { stdio: 'ignore' });
@@ -89,6 +98,6 @@ if (require.main === module) {
   const { commandLine } = require('../lib/runtime');
   const r = install();
   if (r.installed) console.log(msg('service_installed'));
-  else { console.log(msg(r.kind === 'launchd' ? 'codex_service_failed' : 'codex_manual', { cmd: commandLine(r.command) })); process.exitCode = 1; }
+  else { console.log(msg(r.kind === 'launchd' || r.kind === 'schtasks' ? 'codex_service_failed' : 'codex_manual', { cmd: commandLine(r.command) })); process.exitCode = 1; }
 }
 module.exports = { definition, install, uninstall, systemdAvailable, LABEL, UNIT, INTERVAL_S };

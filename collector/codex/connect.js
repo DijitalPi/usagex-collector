@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // codex/connect.js <kod>: ön kontrol → kodu harca → kaydet → otomatik
-// güncelleme (macOS LaunchAgent / Linux systemd --user) → ilk tarama arka
+// güncelleme (macOS LaunchAgent / Linux systemd --user / Windows Görev
+// Zamanlayıcı) → ilk tarama arka
 // planda → kısa mesaj. Dil USAGEX_LANG (tr|en), Node yolu USAGEX_NODE.
 const fs = require('node:fs');
 const os = require('node:os');
@@ -78,7 +79,7 @@ async function main(argCode, {
   out(t('codex_privacy'));
   if (!svc.installed) {
     const cmd = commandLine(svc.command || [node, collect, '--watch']);
-    out(t(svc.kind === 'launchd' || svc.kind === 'systemd' ? 'codex_service_failed' : 'codex_manual', { cmd }));
+    out(t(svc.kind === 'launchd' || svc.kind === 'systemd' || svc.kind === 'schtasks' ? 'codex_service_failed' : 'codex_manual', { cmd }));
   }
   if (!first.started) out(t('history_not_started', { cmd: commandLine([node, collect, '--once']) }));
   if (!codexVar) out(t('codex_missing'));
