@@ -41,6 +41,24 @@ test("gerçek model adları resmî tarifelere eşleşir", () => {
   assert.deepStrictEqual(t("claude-haiku-4-5-20251001"), [1, 5]);
 });
 
+// Claude 5.5 ailesi tabloda yokken bu modellerle geçen her günün maliyeti
+// boş kalıyordu (27.10.2026: bu makinede 85 bin mesaj claude-opus-5-5).
+// Resmî fiyat sayfası, 27.10.2026.
+test("Claude 5.5 ailesi kendi tarifesiyle fiyatlanır; cache okuma ikisinde de $0.20/MTok (Opus 0.05x, Sonnet 0.1x)", () => {
+  const t = (m) => [priceFor(m).input, priceFor(m).output];
+  assert.deepStrictEqual(t("claude-opus-5-5"), [4, 20]);
+  assert.deepStrictEqual(t("claude-sonnet-5-5"), [2, 10]);
+  assert.deepStrictEqual(t("claude-haiku-5-5"), [0.1, 0.5]);
+  const M = 1_000_000;
+  // Opus 5.5: 1M giriş $4 + 1M çıkış $20 + 1M cache okuma $0.20 + 1M 1 sa cache yazma $8
+  assert.strictEqual(estimateCostUsd({ "claude-opus-5-5": { input_tokens: M, output_tokens: M, cache_read_tokens: M,
+    cache_creation_tokens: M, cache_creation_1h_tokens: M } }), 32.2);
+  assert.strictEqual(estimateCostUsd({ "claude-sonnet-5-5": { cache_read_tokens: M } }), 0.2, "Sonnet 5.5 cache reads are $0.20/MTok, not $0.10");
+  assert.strictEqual(estimateCostUsd({ "claude-haiku-5-5": { cache_read_tokens: M } }), 0.01);
+  // Aynı gün Opus 5.5 + Haiku 5.5: ikisi de bilindiği için toplam boş kalmaz.
+  assert.strictEqual(estimateCostUsd({ "claude-opus-5-5": { output_tokens: M }, "claude-haiku-5-5": { output_tokens: M } }), 20.5);
+});
+
 test("cache_read katsayısı: yalnız 5.1'lerde 0.025, geri kalanda varsayılan 0.1", () => {
   assert.strictEqual(priceFor("claude-fable-5-1").cache_read, 0.025);
   assert.strictEqual(priceFor("claude-mythos-5-1").cache_read, 0.025);
@@ -162,7 +180,7 @@ test("PRICING_VERSION tanımlı, pozitif tam sayı ve güncel kuşağı gösteri
   assert.ok(Number.isInteger(PRICING_VERSION) && PRICING_VERSION > 0);
   // Tarife tablosunu ya da cacheWriteUnits/estimateCostUsd yöntemini
   // değiştirdiysen: PRICING_VERSION'ı ARTIR ve bu beklentiyi güncelle.
-  assert.strictEqual(PRICING_VERSION, 5);
+  assert.strictEqual(PRICING_VERSION, 8);
 });
 
 test("kuşak 3'ün imzası: tabloyu sessizce değiştiren düzenleme burada yakalanır", () => {

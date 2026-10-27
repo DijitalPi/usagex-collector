@@ -2,11 +2,11 @@
 // Fiyat güncellemesi gerekirse sadece bu tabloyu düzenle.
 // Model sürümü tam eşleşir; bilinmeyen sürümlerin fiyatı tahmin edilmez.
 // Güncel tarifeler resmî fiyat sayfasından:
-// https://platform.claude.com/docs/en/about-claude/pricing (doğrulandı: 18.09.2026).
+// https://platform.claude.com/docs/en/about-claude/pricing (doğrulandı: 27.10.2026).
 // Eskiden Claude 5 ailesi ve Opus 4.x "Opus tarifesi" varsayımıyla 15/75 yazılmıştı;
 // gerçekte Opus katmanı 5/25, Fable 10/50 — maliyet tahmini 2-3 KAT şişikti.
 // İsteğe bağlı `cache_read`: cache okumanın input fiyatına oranı. Yazılmazsa 0.1
-// (resmî varsayılan çarpan); yalnız Fable/Mythos 5.1'de 0.025.
+// (resmî varsayılan çarpan); Fable/Mythos 5.1'de 0.025, Opus 5.5 ve Sonnet 5.5'te 0.05.
 
 // FİYAT KUŞAĞI — sunucu bir maliyet satırının HANGİ tarifeyle hesaplandığını
 // bilsin diye payload'da taşınır (`pricing_version`).
@@ -21,9 +21,25 @@
 //   3 — resmî fiyat sayfasıyla hizalandı (07.09.2026): Opus katmanı 5/25,
 //       Fable/Mythos 10/50, Sonnet 5 kalıcı 2/10, 5.1'lerde cache okuma 0.025x
 //   5 — unknown model versions are not guessed; invalid counters stay unknown.
-const PRICING_VERSION = 5;
+//   6 — Opus 5.5 (4/20), Sonnet 5.5 (2/10) ve Haiku 5.5 (0.10/0.50) eklendi
+//       (27.10.2026). Tabloda yokken bu modellerle geçen günlerin maliyeti
+//       hiç hesaplanmıyordu (uygulamada "—").
+//   7 — Sonnet 5.5 cache okuma 0.1x ($0.20/MTok; 6'da yanlışlıkla 0.05x yazılmıştı,
+//       maliyet %20'ye kadar düşük çıkıyordu). Opus 5.5 0.05x ($0.20/MTok) doğru.
+//   8 — cache yazma dökümü (5 dk + 1 sa) toplamı aşarsa gün "maliyet yok" olmaz,
+//       döküm toplama kırpılır. Aşımı collector'ın kendisi üretiyordu (aynı
+//       mesajın bloklarında döküm kayıyordu); günler "—" kalıyordu (27.10.2026).
+const PRICING_VERSION = 8;
 
 const PRICES = [
+  // — Claude 5.5 ailesi (27.10.2026) — cache okuma ikisinde de $0.20/MTok:
+  // Opus 5.5'te 0.05x, Sonnet 5.5'te varsayılan 0.1x (claude-api models.md).
+  { match: "opus-5-5", input: 4, output: 20, cache_read: 0.05 },
+  { match: "sonnet-5-5", input: 2, output: 10 },
+  // Haiku 5.5 istem uzunluğuna göre fiyatlanır: 100K token üstü istemde
+  // 0.50/2.50. Collector günlük toplamı tutar, istek başına uzunluğu bilmez;
+  // 100K altı tarife yazılır (Claude Code'un Haiku istekleri kısa).
+  { match: "haiku-5-5", input: 0.1, output: 0.5 },
   // — Claude 5 ailesi —
   // 5.1'ler cache okumada 0.025x ($0.25/MTok) — 5.0 sürümlerinden FARKLI (onlar 0.1x).
   // Kaynak: resmî fiyat tablosu dipnotu, 07.09.2026.
@@ -73,8 +89,9 @@ function priceFor(model) {
 // transcript.js bunu cache_creation_{5m,1h}_tokens olarak taşır.
 function cacheWriteUnits(u) {
   const total = u.cache_creation_tokens || 0;
-  const c5 = u.cache_creation_5m_tokens || 0;
-  const c1 = u.cache_creation_1h_tokens || 0;
+  // Döküm toplamı aşamaz: önce 1 saatlik (pahalı) kısım, kalan 5 dakikalık.
+  const c1 = u.cache_creation_tokens != null ? Math.min(u.cache_creation_1h_tokens || 0, total) : u.cache_creation_1h_tokens || 0;
+  const c5 = u.cache_creation_tokens != null ? Math.min(u.cache_creation_5m_tokens || 0, total - c1) : u.cache_creation_5m_tokens || 0;
   // Döküm yoksa (eski transkript / eski collector verisi) eski varsayıma düş.
   if (c5 + c1 === 0) return total * 1.25;
   // Döküm toplamı tutmuyorsa artan kısmı ucuz tarifeyle say (sessizce kaybolmasın).
@@ -89,8 +106,6 @@ function estimateCostUsd(models) {
     if (!u || typeof u !== "object") return null;
     const keys = ["input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens", "cache_creation_5m_tokens", "cache_creation_1h_tokens"];
     if (keys.some(k => u[k] != null && (!Number.isSafeInteger(u[k]) || u[k] < 0))) return null;
-    const write = (u.cache_creation_5m_tokens || 0) + (u.cache_creation_1h_tokens || 0);
-    if (u.cache_creation_tokens != null && write > u.cache_creation_tokens) return null;
     const p = priceFor(model);
     if (!p) return null;
     total +=

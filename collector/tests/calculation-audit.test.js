@@ -16,7 +16,23 @@ test('streamed output increases count once and stays on its original day', () =>
 });
 test('negative, infinite, fractional and string counters cannot become a cost', () => {
   for (const n of [-1, Infinity, NaN, 1.5, '10']) assert.equal(estimateCostUsd({ [model]: { input_tokens: n } }), null);
-  assert.equal(estimateCostUsd({ [model]: { cache_creation_tokens: 10, cache_creation_1h_tokens: 11 } }), null);
+});
+// Döküm toplamı aşarsa (collector'ın blok birleştirmesi üretebiliyordu) gün
+// maliyetsiz kalmaz: döküm toplama kırpılır.
+test('a cache-write breakdown over its total is clamped, not a missing cost', () => {
+  const M = 1_000_000;
+  const over = estimateCostUsd({ [model]: { cache_creation_tokens: M, cache_creation_1h_tokens: M, cache_creation_5m_tokens: 5000 } });
+  const exact = estimateCostUsd({ [model]: { cache_creation_tokens: M, cache_creation_1h_tokens: M } });
+  assert.equal(over, exact);
+});
+test('repeated blocks that shift the cache-write split never push the breakdown over the total', () => {
+  const at = '2026-07-01T12:00:00Z';
+  const block = (c5, c1) => JSON.stringify({ type: 'assistant', timestamp: at, message: { id: 'm1', model,
+    usage: { input_tokens: 1, output_tokens: 1, cache_creation_input_tokens: 100, cache_creation: { ephemeral_5m_input_tokens: c5, ephemeral_1h_input_tokens: c1 } } } });
+  const u = summarizeLines([block(40, 60), block(30, 70)]).models[model];
+  assert.equal(u.cache_creation_tokens, 100);
+  assert.ok(u.cache_creation_1h_tokens + u.cache_creation_5m_tokens <= 100, JSON.stringify(u));
+  assert.equal(u.cache_creation_1h_tokens, 70);
 });
 test('reported total allocation preserves every microdollar', () => {
   const s = summarizeLines([line(10, 'a'), line(10, 'b', '2026-07-02T12:00:00Z'), line(10, 'c', '2026-07-03T12:00:00Z')]);

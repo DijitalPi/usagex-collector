@@ -145,7 +145,8 @@ async function main() {
       // cacheDir:null → alt-ajan önbelleği KAPALI. Backfill her dosyayı bir kez
       // okuyor; önbellek hiçbir okumadan tasarruf ettirmez, buna karşılık her
       // transkriptte tüm önbelleği okuyup yazmak yüzlerce dosyada işi ağırlaştırır.
-      const summary = await summarizeTranscript(filePath, { cacheDir: null, ownershipDir: claudeDir() });
+      // Toplu gönderim bütçesiz: bir oturumun bütün alt-ajan dosyaları okunur.
+      const summary = await summarizeTranscript(filePath, { cacheDir: null, ownershipDir: claudeDir(), subagentBudget: Infinity });
       if (!summary.deduplicated_messages && summary.message_count === 0 && Object.keys(summary.models).length === 0) { skipped++; continue; }
       // cwd okunamadıysa proje adı BOŞ gider, "unknown" DEĞİL: sunucudaki upsert
       // "unknown"ı gerçek bir ad sanıp hook'un yazdığı doğru adı eziyordu (bulgu 21).

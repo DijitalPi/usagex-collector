@@ -146,10 +146,17 @@ function createAccumulator({ ownsMessage = () => true } = {}) {
       cache_creation_5m_tokens: count(u.cache_creation?.ephemeral_5m_input_tokens),
       cache_creation_1h_tokens: count(u.cache_creation?.ephemeral_1h_input_tokens),
     };
+    // Mesajın değeri her alanda görülen en büyük sayıdır. Cache yazma dökümü
+    // (1 sa + 5 dk) toplamı aşamaz: aynı mesajın blokları dökümü farklı
+    // bölebiliyor ve alan alan artış toplamı aşıp günü "maliyet yok" yapıyordu.
+    const merged = {};
+    for (const key of USAGE_KEYS) merged[key] = Math.max(record.usage[key], next[key]);
+    merged.cache_creation_1h_tokens = Math.min(merged.cache_creation_1h_tokens, merged.cache_creation_tokens);
+    merged.cache_creation_5m_tokens = Math.min(merged.cache_creation_5m_tokens, merged.cache_creation_tokens - merged.cache_creation_1h_tokens);
     const delta = emptyUsage();
     for (const key of USAGE_KEYS) {
-      delta[key] = Math.max(0, next[key] - record.usage[key]);
-      record.usage[key] += delta[key];
+      delta[key] = merged[key] - record.usage[key];
+      record.usage[key] = merged[key];
     }
     addUsage(models, model, delta);
     if (b) addUsage(b.models, model, delta);
@@ -209,7 +216,10 @@ function createAccumulator({ ownsMessage = () => true } = {}) {
   };
   function finish() {
     const ledger = costState?.modelUsage;
-    const coversUsage = ledger && Object.keys(ledger).length ? Object.entries(models).every(([model, usage]) =>
+    // Kullanımı sıfır model (yarıda kesilen yanıtın "<synthetic>" kaydı) deftere
+    // girmez; onu da şart koşmak Claude Code'un gerçek maliyetini boşa düşürüyordu.
+    const used = Object.entries(models).filter(([, u]) => Object.values(COST_STATE_MAP).some((k) => (u[k] || 0) > 0));
+    const coversUsage = ledger && Object.keys(ledger).length ? used.every(([model, usage]) =>
       Object.entries(COST_STATE_MAP).every(([source, key]) =>
         Number.isFinite(ledger[model]?.[source]) && ledger[model][source] >= usage[key])) : null;
     for (const b of Object.values(days)) { delete b._s; delete b._e; }
@@ -264,11 +274,19 @@ function streamInto(filePath, acc) {
 // <klasör>/<oturum-id>/subagents/**.jsonl — bunlar da limiti GERÇEKTEN tüketir.
 // Eskiden yalnız TEK seviye taranıyordu; gerçek kurulumda dosyaların bir kısmı
 // subagents/workflows/<wf-id>/ altında duruyor (ölçüldü) ve tamamen kaçıyordu.
-// Artık özyinelemeli, ama üç frenle: derinlik, dosya sayısı ve toplam boyut.
-// Fren yoksa Stop hook'u her cevapta yüzlerce MB okumaya kalkıp oturumu bekletir.
+// Artık özyinelemeli, iki frenle: derinlik ve dosya sayısı.
+//
+// BOYUT, LİSTEYİ DEĞİL OKUMAYI SINIRLAR (27.10.2026). Eskiden toplam 50 MB'ı
+// aşan dosyalar listeden atılıyordu: ajan ve iş akışı yoğun bir günde (21 Eki,
+// bu Mac) bir oturumun alt-ajan dosyaları 344 MB'tı ve günün cache okumasının
+// %38'i, çıktısının %12'si hiç sayılmadı. Artık önbellekteki dosyalar her zaman
+// sayılır; yalnız ÖNBELLEKTE OLMAYANLARIN okunması bütçeye bağlı. Ölçülen hız
+// ~250 MB/sn: 400 MB ≈ 1,6 sn, hook zaman aşımı 15 sn. Bütçeye sığmayanlar
+// sonraki Stop'ta okunur ve önbelleğe girer; toplam her turda gerçeğe yaklaşır.
+// Toplu gönderim (backfill) beklemeyi göze alır, bütçesizdir.
 const SUB_MAX_DEPTH = 3;                    // subagents/workflows/<wf>/x.jsonl = 2, pay var
-const SUB_MAX_FILES = 200;
-const SUB_MAX_BYTES = 50 * 1024 * 1024;
+const SUB_MAX_FILES = 1000;
+const SUB_PARSE_BUDGET = 400 * 1024 * 1024;
 const SUB_CACHE_NAME = "usagex-subagent-cache.json";
 // Önbellek her Stop hook'unda baştan okunuyor: sınır ne kadar büyükse ayrıştırma
 // maliyeti o kadar artar. 500 girdi ≈ 300 KB ≈ birkaç ms — makul bir tavan.
@@ -279,7 +297,6 @@ const SUB_CACHE_MAX_ENTRIES = 500;
 // upsert değeri ileri geri oynatır.
 function listSubagentFiles(dir) {
   const out = [];
-  let toplam = 0;
   const gez = (d, derinlik) => {
     if (derinlik > SUB_MAX_DEPTH || out.length >= SUB_MAX_FILES) return;
     let girisler = [];
@@ -292,8 +309,6 @@ function listSubagentFiles(dir) {
       if (!e.name.endsWith(".jsonl")) continue;
       let st;
       try { st = fs.statSync(p); } catch { continue; }
-      if (toplam + st.size > SUB_MAX_BYTES) return; // boyut tavanı: kalanı atla
-      toplam += st.size;
       out.push({ path: p, size: st.size, mtime: st.mtimeMs });
     }
   };
@@ -333,7 +348,7 @@ function writeSubCache(dir, cache) {
 // Değişmeyen alt-ajan dosyasını HER Stop hook'unda baştan ayrıştırmak boşuna iş:
 // dosya kapandıktan sonra bir daha değişmiyor. (size, mtime) aynıysa önbellekteki
 // özet kullanılır; oturum uzadıkça hook maliyeti sabit kalır.
-async function addSubagents(filePath, acc, cacheDir) {
+async function addSubagents(filePath, acc, cacheDir, budget = SUB_PARSE_BUDGET) {
   const dir = path.join(path.dirname(filePath), path.basename(filePath, ".jsonl"), "subagents");
   const files = listSubagentFiles(dir);
   if (files.length === 0) return;
@@ -341,12 +356,25 @@ async function addSubagents(filePath, acc, cacheDir) {
   acc.ignoreCostState();
   const cache = cacheDir ? readSubCache(cacheDir) : {};
   const updates = {};
+  let parsed = 0;
   for (const file of files) {
     const hit = cache[file.path];
-    if (hit?.version === 2 && hit.size === file.size && hit.mtime === file.mtime && Array.isArray(hit.records)) {
+    const usable = hit?.version === 2 && Array.isArray(hit.records);
+    if (usable && hit.size === file.size && hit.mtime === file.mtime) {
       for (const record of hit.records) acc.addLine(record);
+      // Kullanılan girdi taze tutulur: uzun oturumun ilk dosyaları önbellek
+      // tavanında ilk silinip her Stop'ta yeniden okunmasın (saatte bir yazım).
+      if (Date.now() - (hit.seen_at || 0) > 3600e3) updates[file.path] = { ...hit, seen_at: Date.now() };
       continue;
     }
+    // Bütçe doldu: bu dosya sonraki çağrıda okunur. Önbellekte ESKİ özeti varsa
+    // o sayılır (alt sınır): daha önce gönderilmiş toplam geri düşmesin. İlk
+    // dosya her zaman okunur, yoksa tek başına bütçeden büyük dosya hiç sayılmazdı.
+    if (parsed > 0 && parsed + file.size > budget) {
+      if (usable) for (const record of hit.records) acc.addLine(record);
+      continue;
+    }
+    parsed += file.size;
     // Cache only counters, IDs and timestamps. Prompts, code and tool output
     // never enter this cache. Replaying IDs preserves cross-file deduplication.
     const records = []; let bytes = 0;
@@ -393,7 +421,7 @@ const EMPTY = () => ({
 // ASENKRON: hook'lar zaten async. Transcript artık belleğe komple okunmuyor.
 // cacheDir: alt-ajan özet önbelleğinin yazılacağı dizin (varsayılan ~/.claude).
 // null verilirse önbellek tamamen kapanır (testler ve backfill için).
-async function summarizeTranscript(filePath, { cacheDir, ownershipDir = cacheDir } = {}) {
+async function summarizeTranscript(filePath, { cacheDir, ownershipDir = cacheDir, subagentBudget } = {}) {
   let claimsDir = ownershipDir;
   if (claimsDir === undefined) {
     const root = claudeDir();
@@ -407,11 +435,11 @@ async function summarizeTranscript(filePath, { cacheDir, ownershipDir = cacheDir
   if (dir === undefined) {
     try { dir = claudeDir(); } catch { dir = null; }
   }
-  await addSubagents(filePath, acc, dir || null);
+  await addSubagents(filePath, acc, dir || null, subagentBudget);
   return acc.finish();
 }
 
 module.exports = {
   summarizeTranscript, summarizeLines, createAccumulator, tzOffsetMinutes,
-  listSubagentFiles, SUB_MAX_FILES, SUB_MAX_DEPTH, SUB_CACHE_NAME,
+  listSubagentFiles, SUB_MAX_FILES, SUB_MAX_DEPTH, SUB_CACHE_NAME, SUB_PARSE_BUDGET,
 };

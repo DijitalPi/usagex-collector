@@ -30,7 +30,9 @@ async function main() {
   try { input = JSON.parse(await readStdin()); } catch {}
   if (!input || typeof input !== "object") input = {};
 
-  const summary = input.transcript_path ? await summarizeTranscript(input.transcript_path) : null;
+  // Kapanış oturumun SON gönderimi: Stop'larda bütçeye sığmayan alt-ajan
+  // dosyaları burada okunmazsa hiç sayılmaz. 1 GB ≈ 4 sn (hook sınırı 15 sn).
+  const summary = input.transcript_path ? await summarizeTranscript(input.transcript_path, { subagentBudget: 1024 * 1024 * 1024 }) : null;
   if (summary && !summary.deduplicated_messages && summary.message_count === 0 && Object.keys(summary.models).length === 0) return;
   const plan_usage = dropStale(await getPlanUsage({ force: true }));
   if (!summary) {

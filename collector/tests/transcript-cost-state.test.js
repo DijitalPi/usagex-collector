@@ -224,6 +224,56 @@ test("alt-ajan özeti (size, mtime) değişmedikçe ÖNBELLEKTEN gelir", async (
   assert.deepStrictEqual(ikinci, ilk, "cached IDs retain the same deduplication behavior");
 });
 
+test("okuma bütçesi dosya atmaz: bütçeye sığmayan dosya sonraki çağrıda okunur ve önbellekten sayılır", async () => {
+  const dir = tmpDir();
+  const cacheDir = tmpDir();
+  const ana = path.join(dir, "ana.jsonl");
+  yaz(ana, [altSatir("m1", 100, "2026-07-01T12:00:00Z")]);
+  yaz(path.join(dir, "ana", "subagents", "a.jsonl"), [altSatir("a1", 200)]);
+  yaz(path.join(dir, "ana", "subagents", "b.jsonl"), [altSatir("b1", 400)]);
+
+  // Bütçe 1 bayt: ilk dosya yine okunur (tek başına büyük dosya hiç sayılmamazlık etmesin).
+  const ilk = await summarizeTranscript(ana, { cacheDir, subagentBudget: 1 });
+  assert.strictEqual(ilk.models["claude-sonnet-5"].input_tokens, 300, "100 + a");
+  const ikinci = await summarizeTranscript(ana, { cacheDir, subagentBudget: 1 });
+  assert.strictEqual(ikinci.models["claude-sonnet-5"].input_tokens, 700, "a önbellekten, b bu turda okundu");
+  const bütçesiz = await summarizeTranscript(ana, { cacheDir: null, subagentBudget: Infinity });
+  assert.strictEqual(bütçesiz.models["claude-sonnet-5"].input_tokens, 700);
+});
+
+test("bütçe dolunca daha önce sayılmış dosyanın eski özeti sayılır: toplam geri düşmez", async () => {
+  const dir = tmpDir();
+  const cacheDir = tmpDir();
+  const ana = path.join(dir, "ana.jsonl");
+  yaz(ana, [altSatir("m1", 100, "2026-07-01T12:00:00Z")]);
+  const a = path.join(dir, "ana", "subagents", "a.jsonl"), b = path.join(dir, "ana", "subagents", "b.jsonl");
+  yaz(a, [altSatir("a1", 200)]);
+  yaz(b, [altSatir("b1", 400)]);
+  const ilk = await summarizeTranscript(ana, { cacheDir, subagentBudget: Infinity });
+  assert.strictEqual(ilk.models["claude-sonnet-5"].input_tokens, 700);
+  // İki dosya da büyür; bütçe yalnız birini okumaya yetiyor.
+  yaz(a, [altSatir("a1", 200), altSatir("a2", 10)]);
+  yaz(b, [altSatir("b1", 400), altSatir("b2", 20)]);
+  const sonra = await summarizeTranscript(ana, { cacheDir, subagentBudget: 1 });
+  assert.ok(sonra.models["claude-sonnet-5"].input_tokens >= 700, `toplam düşmedi: ${sonra.models["claude-sonnet-5"].input_tokens}`);
+});
+
+test("kullanımı sıfır <synthetic> modeli Claude Code'un bildirdiği maliyeti boşa düşürmez", () => {
+  const lines = [
+    L({ type: "assistant", timestamp: "2026-07-01T12:00:00Z", message: { id: "m1", model: "claude-sonnet-5", usage: { input_tokens: 100, output_tokens: 50 } } }),
+    L({ type: "assistant", timestamp: "2026-07-01T12:01:00Z", message: { id: "m2", model: "<synthetic>", usage: { input_tokens: 0, output_tokens: 0 } } }),
+    L({ type: "cost-state", totalCostUSD: 9.99, modelUsage: { "claude-sonnet-5": { inputTokens: 100, outputTokens: 50, cacheCreationInputTokens: 0, cacheReadInputTokens: 0 } } }),
+  ];
+  const s = summarizeLines(lines);
+  assert.strictEqual(s.cost_state_covers_usage, true);
+  assert.strictEqual(s.claude_reported_cost_usd, 9.99);
+});
+
+test("alt-ajan listesi toplam boyuttan dolayı dosya atmaz", () => {
+  const src = fs.readFileSync(path.join(__dirname, "../lib/transcript.js"), "utf8");
+  assert.doesNotMatch(src, /SUB_MAX_BYTES/, "21 Eki: 50 MB tavanı günün cache okumasının %38'ini düşürüyordu");
+});
+
 test("alt-ajan dosyası DEĞİŞİRSE önbellek atlanır, yeniden okunur", async () => {
   const dir = tmpDir();
   const cacheDir = tmpDir();

@@ -237,7 +237,7 @@ test("sessionPayload pricing_version taşır (lib/pricing.js ile aynı sayı)", 
     config: { send_project_names: true },
   });
   assert.strictEqual(p.pricing_version, PRICING_VERSION);
-  assert.strictEqual(p.pricing_version, 5);
+  assert.strictEqual(p.pricing_version, 8);
 });
 
 test("cost-state OTORİTE olsa bile pricing_version DOLU gider", () => {
@@ -258,10 +258,33 @@ test("cost-state OTORİTE olsa bile pricing_version DOLU gider", () => {
   });
   assert.strictEqual(p.est_cost_usd, 7.5, "otorite toplam cost-state'ten gelmeli");
   assert.strictEqual(p.claude_reported_cost_usd, 7.5);
-  assert.strictEqual(p.pricing_version, 5);
+  assert.strictEqual(p.pricing_version, 8);
 });
 
 test("snapshotPayload'da pricing_version YOK (maliyet taşımıyor)", () => {
   const p = snapshotPayload({ session_pct: 10, week_pct: 10 }, { source: "ping" });
   assert.strictEqual(p.pricing_version, undefined);
+});
+
+// Plan önerisi için yalnız plan türü gider: e-posta, ad, kurum adı, kimlik GİTMEZ.
+test("snapshotPayload carries only the Claude plan fields from .claude.json, nothing personal", () => {
+  const fs = require("node:fs"), os = require("node:os"), path = require("node:path");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "usagex-plan-"));
+  const prev = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = dir;
+  try {
+    const { snapshotPayload: snap } = require("../lib/payload");
+    assert.strictEqual(snap({ session_pct: 1 }, { source: "ping" }).claude_plan, null, "no file, no plan");
+    fs.writeFileSync(path.join(dir, ".claude.json"), JSON.stringify({ oauthAccount: {
+      emailAddress: "someone@example.com", organizationName: "Acme", accountUuid: "u-1", organizationUuid: "o-1",
+      organizationType: "claude_team", organizationRateLimitTier: "default_claude_team", seatTier: "Premium; drop table",
+    } }));
+    const p = snap({ session_pct: 1 }, { source: "ping" });
+    assert.deepStrictEqual(p.claude_plan, { org_type: "claude_team", rate_tier: "default_claude_team", seat_tier: null });
+    const raw = JSON.stringify(p);
+    for (const secret of ["someone@example.com", "Acme", "u-1", "o-1"]) assert.ok(!raw.includes(secret), secret);
+  } finally {
+    if (prev === undefined) delete process.env.CLAUDE_CONFIG_DIR; else process.env.CLAUDE_CONFIG_DIR = prev;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

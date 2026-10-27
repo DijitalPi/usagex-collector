@@ -30,6 +30,30 @@ function claudeFirstUsedAt() {
   return out;
 }
 
+// CLAUDE PLANI (Rapor → Plan önerisi): Claude Code'un kendi ayar dosyası
+// hesabın plan türünü tutuyor (oauthAccount.organizationType "claude_max",
+// organizationRateLimitTier "default_claude_max_20x", Team'de seatTier).
+// Yalnız bu üç alan gider; e-posta, ad, kurum adı ve kimlikler GİTMEZ.
+// Plan değişebileceği için önbellek dosyanın değişme zamanına bağlı.
+const PLAN_FIELD = /^[a-z0-9_]{1,48}$/;
+const _planCache = new Map(); // yol -> { mtime, value }
+function claudePlan() {
+  const p = claudeJsonPath();
+  let mtime = null;
+  try { mtime = fs.statSync(p).mtimeMs; } catch { return null; }
+  const hit = _planCache.get(p);
+  if (hit && hit.mtime === mtime) return hit.value;
+  let value = null;
+  try {
+    const a = JSON.parse(fs.readFileSync(p, "utf8"))?.oauthAccount || {};
+    const pick = (v) => (typeof v === "string" && PLAN_FIELD.test(v) ? v : null);
+    const out = { org_type: pick(a.organizationType), rate_tier: pick(a.organizationRateLimitTier), seat_tier: pick(a.seatTier) };
+    if (out.org_type || out.rate_tier) value = out;
+  } catch {}
+  _planCache.set(p, { mtime, value });
+  return value;
+}
+
 // send_project_names=false iken proje adı geri döndürülemez kısa hash'e çevrilir
 // (klasör adları müşteri/proje ismi içerebilir — veri minimizasyonu).
 // Ad BİLİNMİYORSA boş dizge döner, "unknown" DEĞİL: backfill cwd'yi okuyamadığında
@@ -70,6 +94,7 @@ function snapshotPayload(plan_usage, { source }) {
     source, // 'session-start' | 'stop' | 'session-end' | 'ping' | 'poller'
     plan_usage,
     claude_first_used_at: claudeFirstUsedAt(),
+    claude_plan: claudePlan(),
   };
 }
 
@@ -187,6 +212,6 @@ function sessionPayload({ session_id, summary, plan_usage, config }) {
 }
 
 module.exports = {
-  snapshotPayload, sessionPayload, projectLabel, machineLabel, filterClaudeModels,
+  snapshotPayload, sessionPayload, projectLabel, machineLabel, filterClaudeModels, claudePlan,
   MAX_DAYS, MAX_BODY_BYTES,
 };
