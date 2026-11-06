@@ -73,11 +73,17 @@ async function collect({ home = codexDir(), dir = dataDir(), now = Date.now(), s
     const known = Object.assign(Object.create(null), state.identity);
     const identity = Object.create(null);
     for (const file of files) {
-      const stat = fs.statSync(file); stats.set(file, stat);
-      // A rollout only grows, so its session id is re-read when the path is new
-      // or the file shrank (replaced) — not on every scan of every session.
-      const cached = known[file];
-      const id = cached && typeof cached.id === 'string' && stat.size >= cached.size ? cached.id : await rolloutIdentity(file);
+      // A rollout removed or unreadable since the listing is left out of this
+      // scan instead of failing it.
+      let stat, id;
+      try {
+        stat = fs.statSync(file);
+        // A rollout only grows, so its session id is re-read when the path is new
+        // or the file shrank (replaced) — not on every scan of every session.
+        const cached = known[file];
+        id = cached && typeof cached.id === 'string' && stat.size >= cached.size ? cached.id : await rolloutIdentity(file);
+      } catch { continue; }
+      stats.set(file, stat);
       identity[file] = { id: typeof id === 'string' ? id : null, size: stat.size };
       const group = id || file;
       if (!groups.has(group)) groups.set(group, []);
@@ -93,7 +99,12 @@ async function collect({ home = codexDir(), dir = dataDir(), now = Date.now(), s
       // Only an appended lone file resumes; merged copies (fork/resume segments
       // are combined in timestamp order), a shrunk file or a moved path re-read.
       const resume = sources.length === 1 && entry?.path === sources[0] && entry.cursor && stats.get(sources[0]).size >= entry.cursor.offset ? entry.cursor : null;
-      const summary = await readRollout(sources, { claimEvent, now, since, resume });
+      // Sessions are read oldest first. One that cannot be read used to end the
+      // scan at the same place every minute, so nothing newer was ever sent. It
+      // is skipped now and read again once its file changes.
+      let summary;
+      try { summary = await readRollout(sources, { claimEvent, now, since, resume }); }
+      catch { state.files[key] = { signature, path: sources.length === 1 ? sources[0] : null, cursor: null }; continue; }
       const next = { signature, path: sources.length === 1 ? sources[0] : null, cursor: summary.cursor || null };
       const payload = sessionPayload(summary, config, now) || (summary.plan_usage && {
         schema_version: 1, provider: 'codex', kind: 'snapshot', source: 'codex-rollout', generated_at: new Date(now).toISOString(), plan_usage: summary.plan_usage,

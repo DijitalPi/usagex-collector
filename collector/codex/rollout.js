@@ -118,7 +118,10 @@ async function readRollout(file, { claimEvent = () => true, now = Date.now(), si
     if (!p || typeof p !== 'object') continue;
     if (row.type === 'session_meta') {
       if (typeof p.id === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(p.id)) {
-        if (sessionId && sessionId !== p.id) throw new Error('Cannot merge different Codex sessions');
+        // A fork can carry its parent's header as inherited history. The file
+        // belongs to the first session it names; copied token events are left
+        // to their owner by claimEvent. Throwing here stopped every later scan.
+        if (sessionId && sessionId !== p.id) continue;
         sessionId = p.id;
       }
       if (typeof p.cwd === 'string') project = path.basename(p.cwd);

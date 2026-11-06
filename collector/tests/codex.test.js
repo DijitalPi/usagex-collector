@@ -97,6 +97,41 @@ test('copied token events across fork files belong to one session', async t => {
   assert.equal(sent.reduce((n, p) => n + p.message_count, 0), 2);
 });
 
+test('a fork carrying its parent header neither stops the scan nor counts the parent twice', async t => {
+  const f = fixture(t, [meta('parent'), context('gpt-5.6-sol'), event(1, 20, 5)]);
+  const fork = { type: 'session_meta', payload: { ...meta('child').payload, forked_from_id: 'parent' } };
+  fs.writeFileSync(path.join(f.home, 'sessions', 'rollout-2027-fork.jsonl'), [fork, meta('parent'), context('gpt-5.6-sol'), event(1, 20, 5), event(2, 40, 10)].map(JSON.stringify).join('\n') + '\n');
+  fs.writeFileSync(path.join(f.home, 'sessions', 'rollout-2028-later.jsonl'), [meta('later'), context('gpt-5.6-sol'), event(3, 30, 6)].map(JSON.stringify).join('\n') + '\n');
+  connected(f);
+  const sent = [];
+  const result = await collect({ ...f, now, flush: async () => ({}), send: async p => { sent.push(p); return { status: 'sent' }; } });
+  assert.equal(result.status, 'ok');
+  assert.deepEqual(sent.map(p => p.session_id), ['parent', 'child', 'later']);
+  assert.equal(sent.reduce((n, p) => n + p.models['gpt-5.6-sol'].input_tokens, 0), 70);
+});
+
+test('a session that cannot be read is skipped, newer sessions still go out, and it is read again once it changes', async t => {
+  const f = fixture(t, [meta('broken'), context('gpt-5.6-sol'), event(1, 20, 5)]);
+  const later = path.join(f.home, 'sessions', 'rollout-2027-later.jsonl');
+  fs.writeFileSync(later, [meta('later'), context('gpt-5.6-sol'), event(2, 30, 6)].map(JSON.stringify).join('\n') + '\n');
+  connected(f);
+  // The id scan opens the file once; the session read fails after that.
+  const real = fs.createReadStream;
+  let opens = 0, failing = true;
+  fs.createReadStream = (file, options) => file === f.file && failing && ++opens > 1 ? real(path.join(f.home, 'missing.jsonl')) : real(file, options);
+  t.after(() => { fs.createReadStream = real; });
+  const sent = [];
+  const options = { ...f, now, flush: async () => ({}), send: async p => { sent.push(p.session_id); return { status: 'sent' }; } };
+  assert.equal((await collect(options)).status, 'ok');
+  assert.deepEqual(sent, ['later']);
+  await collect(options);
+  assert.equal(opens, 2, 'an unchanged unreadable session is not re-read every minute');
+  failing = false;
+  append(f.file, [event(3, 40, 10)]);
+  await collect(options);
+  assert.deepEqual(sent, ['later', 'broken']);
+});
+
 test('copies and resumed segments of one session produce one absolute summary', async t => {
   const f = fixture(t, [meta(), context('gpt-5.4'), event(1, 100, 20, 50)]);
   const next = path.join(f.home, 'sessions', 'rollout-resume.jsonl');
